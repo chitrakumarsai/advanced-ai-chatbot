@@ -76,7 +76,3 @@ def get_weather():
 
 assistant = ChatbotAssistant('intents.json', function_mappings={'weather': get_weather})
 ```
-
-## License
-
-This project is licensed under the MIT License.
