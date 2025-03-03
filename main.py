@@ -4,21 +4,18 @@ import random
 
 import nltk
 import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-##############Run this code to download the nltk packages############################################
-# nltk.download("punkt_tab")
-# nltk.download('wordnet')
-####################################################################################################
+
 
 class ChatbotModel(nn.Module):
+
     def __init__(self, input_size, output_size):
         super(ChatbotModel, self).__init__()
-        self.input_size = input_size
-        self.output_size = output_size
 
         self.fc1 = nn.Linear(input_size, 128)
         self.fc2 = nn.Linear(128, 64)
@@ -27,30 +24,28 @@ class ChatbotModel(nn.Module):
         self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
-        x = self.fc1(x)
-        x = self.relu(x)
+        x = self.relu(self.fc1(x))
         x = self.dropout(x)
-
-        x = self.fc2(x)
-        x = self.relu(x)
+        x = self.relu(self.fc2(x))
         x = self.dropout(x)
-
         x = self.fc3(x)
+
         return x
 
 
 class ChatbotAssistant:
-    def __init__(self, intents_path, funtion_mapping = None):
-        self.mode = None
+
+    def __init__(self, intents_path, function_mappings = None):
+        self.model = None
         self.intents_path = intents_path
 
         self.documents = []
-        self.vocabualry = []
+        self.vocabulary = []
         self.intents = []
         self.intents_responses = {}
 
-        self.funtion_mapping = funtion_mapping
-        
+        self.function_mappings = function_mappings
+
         self.X = None
         self.y = None
 
@@ -60,11 +55,12 @@ class ChatbotAssistant:
 
         words = nltk.word_tokenize(text)
         words = [lemmatizer.lemmatize(word.lower()) for word in words]
+
         return words
 
     def bag_of_words(self, words):
-            return [1 if word in words else 0 for word in self.vocabulary]
-    
+        return [1 if word in words else 0 for word in self.vocabulary]
+
     def parse_intents(self):
         lemmatizer = nltk.WordNetLemmatizer()
 
@@ -85,45 +81,45 @@ class ChatbotAssistant:
                 self.vocabulary = sorted(set(self.vocabulary))
 
     def prepare_data(self):
-            bags = []
-            indices = []
+        bags = []
+        indices = []
 
-            for document in self.documents:
-                words = document[0]
-                bag = self.bag_of_words(words)
+        for document in self.documents:
+            words = document[0]
+            bag = self.bag_of_words(words)
 
-                intent_index = self.intents.index(document[1])
+            intent_index = self.intents.index(document[1])
 
-                bags.append(bag)
-                indices.append(intent_index)
+            bags.append(bag)
+            indices.append(intent_index)
 
-            self.X = np.array(bags)
-            self.y = np.array(indices)
+        self.X = np.array(bags)
+        self.y = np.array(indices)
 
     def train_model(self, batch_size, lr, epochs):
-            X_tensor = torch.tensor(self.X, dtype=torch.float32)
-            y_tensor = torch.tensor(self.y, dtype=torch.long)
+        X_tensor = torch.tensor(self.X, dtype=torch.float32)
+        y_tensor = torch.tensor(self.y, dtype=torch.long)
 
-            dataset = TensorDataset(X_tensor, y_tensor)
-            loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        dataset = TensorDataset(X_tensor, y_tensor)
+        loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-            self.model = ChatbotModel(self.X.shape[1], len(self.intents)) 
+        self.model = ChatbotModel(self.X.shape[1], len(self.intents)) 
 
-            criterion = nn.CrossEntropyLoss()
-            optimizer = optim.Adam(self.model.parameters(), lr=lr)
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.Adam(self.model.parameters(), lr=lr)
 
-            for epoch in range(epochs):
-                running_loss = 0.0
+        for epoch in range(epochs):
+            running_loss = 0.0
 
-                for batch_X, batch_y in loader:
-                    optimizer.zero_grad()
-                    outputs = self.model(batch_X)
-                    loss = criterion(outputs, batch_y)
-                    loss.backward()
-                    optimizer.step()
-                    running_loss += loss
-                
-                print(f"Epoch {epoch+1}: Loss: {running_loss / len(loader):.4f}")
+            for batch_X, batch_y in loader:
+                optimizer.zero_grad()
+                outputs = self.model(batch_X)
+                loss = criterion(outputs, batch_y)
+                loss.backward()
+                optimizer.step()
+                running_loss += loss
+            
+            print(f"Epoch {epoch+1}: Loss: {running_loss / len(loader):.4f}")
 
     def save_model(self, model_path, dimensions_path):
         torch.save(self.model.state_dict(), model_path)
@@ -167,9 +163,22 @@ def get_stocks():
     print(random.sample(stocks, 3))
 
 
-def main():
-    print("Hello from advanced-ai-chatbot!")
+if __name__ == '__main__':
+    # assistant = ChatbotAssistant('intents.json', function_mappings = {'stocks': get_stocks})
+    # assistant.parse_intents()
+    # assistant.prepare_data()
+    # assistant.train_model(batch_size=8, lr=0.001, epochs=100)
 
+    # assistant.save_model('chatbot_model.pth', 'dimensions.json')
 
-if __name__ == "__main__":
-    main()
+    assistant = ChatbotAssistant('intents.json', function_mappings = {'stocks': get_stocks})
+    assistant.parse_intents()
+    assistant.load_model('chatbot_model.pth', 'dimensions.json')
+
+    while True:
+        message = input('Enter your message:')
+
+        if message == '/quit':
+            break
+
+        print(assistant.process_message(message))
